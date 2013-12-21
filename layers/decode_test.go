@@ -1140,7 +1140,6 @@ func TestPacketIEEE80211DNS(t *testing.T) {
 		LayerTypeUDP,
 		gopacket.LayerTypePayload,
 	}, t)
-	fmt.Println(p)
 }
 func BenchmarkDecodePacketIEEE80211DNS(b *testing.B) {
 	for i := 0; i < b.N; i++ {

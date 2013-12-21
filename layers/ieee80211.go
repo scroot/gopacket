@@ -88,9 +88,6 @@ func (i *IEEE80211) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) err
 	// Start actual decoding.
 	i.Protocol = data[0] & 0x3
 	i.Type = IEEE80211Type(data[0] >> 2)
-	if i.Type.mainType() != ieee80211MainTypeData {
-		return fmt.Errorf("can only decode data packets for IEEE 802.11")
-	}
 	i.ToDS = data[1]&0x01 != 0
 	i.FromDS = data[1]&0x02 != 0
 	i.MoreFrag = data[1]&0x04 != 0
@@ -101,6 +98,12 @@ func (i *IEEE80211) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) err
 	i.Order = data[1]&0x80 != 0
 	i.DurationID = IEEE80211DurationID(binary.BigEndian.Uint16(data[2:4]))
 	i.Checksum = binary.BigEndian.Uint32(data[len(data)-4:])
+
+	if i.Type.mainType() != ieee80211MainTypeData {
+		// We've decoded all we can of a non-Data packet.
+		// NextLayerType will return Unknown for this type,
+		return fmt.Errorf("cannot decode 802.11 packet type %v", i.Type)
+	}
 
 	// Strip off everything we've done so far.  From here on, we'll continue to
 	// modify the data slice as we pull off bits of the frame.
@@ -155,8 +158,10 @@ func (i *IEEE80211) CanDecode() gopacket.LayerClass {
 
 // NextLayerType returns the layer type contained by this DecodingLayer.
 func (i *IEEE80211) NextLayerType() gopacket.LayerType {
-	fmt.Printf("    '%02x' next: %v\n", uint16(i.Type), i.Type.LayerType())
-	return i.Type.LayerType()
+	if i.Type.mainType() == ieee80211MainTypeData {
+		return LayerTypeLLC
+	}
+	return gopacket.LayerTypeZero
 }
 
 func decodeIEEE80211(data []byte, p gopacket.PacketBuilder) error {
