@@ -4,6 +4,8 @@
 // that can be found in the LICENSE file in the root of the source
 // tree.
 
+// +build linux
+
 // Package routing provides a very basic but mostly functional implementation of
 // a routing table for IPv4/IPv6 addresses.  It uses a routing table pulled from
 // the kernel via netlink to find the correct interface, gateway, and preferred

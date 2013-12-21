@@ -115,9 +115,11 @@ if [ -f /usr/include/pcap.h ]; then
   pushd examples/arpscan
   go build
   popd
-  pushd examples/synscan
-  go build
-  popd
+  if [ "$(uname)" == "Linux" ]; then
+    pushd examples/synscan
+    go build
+    popd
+  fi
   pushd examples/httpassembly
   go build
   popd
