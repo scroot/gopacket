@@ -178,6 +178,43 @@ const (
 // ProtocolFamily is the set of values defined as PF_* in sys/socket.h
 type ProtocolFamily uint8
 
+type IEEE80211Type uint8
+
+const (
+	IEEE80211TypeReserved           IEEE80211Type = 0x07
+	IEEE80211TypeBeacon             IEEE80211Type = 0x08
+	IEEE80211TypeATIM               IEEE80211Type = 0x09
+	IEEE80211TypeDisassociation     IEEE80211Type = 0x0a
+	IEEE80211TypeAuthentication     IEEE80211Type = 0x0b
+	IEEE80211TypeDeauthentication   IEEE80211Type = 0x0c
+	IEEE80211TypeAction             IEEE80211Type = 0x0d
+	IEEE80211TypeActionNoAck        IEEE80211Type = 0x0e
+	IEEE80211TypeControlWrapper     IEEE80211Type = 0x17
+	IEEE80211TypeBlockAckReq        IEEE80211Type = 0x18
+	IEEE80211TypeBlockAck           IEEE80211Type = 0x19
+	IEEE80211TypePSPoll             IEEE80211Type = 0x1a
+	IEEE80211TypeRTS                IEEE80211Type = 0x1b
+	IEEE80211TypeCTS                IEEE80211Type = 0x1c
+	IEEE80211TypeACK                IEEE80211Type = 0x1d
+	IEEE80211TypeCFEnd              IEEE80211Type = 0x1e
+	IEEE80211TypeCFEndCFAck         IEEE80211Type = 0x1f
+	IEEE80211TypeData               IEEE80211Type = 0x20
+	IEEE80211TypeDataCFAck          IEEE80211Type = 0x21
+	IEEE80211TypeDataCFPoll         IEEE80211Type = 0x22
+	IEEE80211TypeDataCFAckCFPoll    IEEE80211Type = 0x23
+	IEEE80211TypeNull               IEEE80211Type = 0x24
+	IEEE80211TypeCFAck              IEEE80211Type = 0x25
+	IEEE80211TypeCFPoll             IEEE80211Type = 0x26
+	IEEE80211TypeCFAckCFPoll        IEEE80211Type = 0x27
+	IEEE80211TypeQoSData            IEEE80211Type = 0x28
+	IEEE80211TypeQoSDataCFAck       IEEE80211Type = 0x29
+	IEEE80211TypeQoSDataCFPoll      IEEE80211Type = 0x2a
+	IEEE80211TypeQoSDataCFAckCFPoll IEEE80211Type = 0x2b
+	IEEE80211TypeQoSNull            IEEE80211Type = 0x2c
+	IEEE80211TypeQoSCFPoll          IEEE80211Type = 0x2e
+	IEEE80211TypeQoSCFAckCFPoll     IEEE80211Type = 0x2f
+)
+
 var (
 	// Each of the following arrays contains mappings of how to handle enum
 	// values for various enum types in gopacket/layers.
@@ -199,6 +236,7 @@ var (
 	FDDIFrameControlMetadata [256]EnumMetadata
 	EAPOLTypeMetadata        [256]EnumMetadata
 	ProtocolFamilyMetadata   [256]EnumMetadata
+	IEEE80211TypeMetadata    [256]EnumMetadata
 )
 
 func (a EthernetType) Decode(data []byte, p gopacket.PacketBuilder) error {
@@ -264,6 +302,15 @@ func (a ProtocolFamily) Decode(data []byte, p gopacket.PacketBuilder) error {
 func (a ProtocolFamily) String() string {
 	return ProtocolFamilyMetadata[a].Name
 }
+func (a IEEE80211Type) Decode(data []byte, p gopacket.PacketBuilder) error {
+	return IEEE80211TypeMetadata[a].DecodeWith.Decode(data, p)
+}
+func (a IEEE80211Type) String() string {
+	return IEEE80211TypeMetadata[a].Name
+}
+func (a IEEE80211Type) LayerType() gopacket.LayerType {
+	return IEEE80211TypeMetadata[a].LayerType
+}
 
 // Decode a raw v4 or v6 IP packet.
 func decodeIPv4or6(data []byte, p gopacket.PacketBuilder) error {
@@ -317,6 +364,10 @@ func init() {
 		ProtocolFamilyMetadata[i] = EnumMetadata{
 			DecodeWith: errorFunc(fmt.Sprintf("Unable to decode protocol family %d", i)),
 			Name:       fmt.Sprintf("UnknownProtocolFamily(%d)", i),
+		}
+		IEEE80211TypeMetadata[i] = EnumMetadata{
+			DecodeWith: errorFunc(fmt.Sprintf("Unable to decode IEEE 802.11 type %d", i)),
+			Name:       fmt.Sprintf("UnknownIEEE80211Type(%d)", i),
 		}
 	}
 
@@ -382,6 +433,7 @@ func init() {
 	LinkTypeMetadata[LinkTypeNull] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeLoopback), Name: "Null"}
 	LinkTypeMetadata[LinkTypeLoop] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeLoopback), Name: "Loop"}
 	LinkTypeMetadata[LinkTypeRaw] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv4or6), Name: "Raw"}
+	LinkTypeMetadata[LinkTypeIEEE802_11] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIEEE80211), Name: "IEEE80211"}
 
 	FDDIFrameControlMetadata[FDDIFrameControlLLC] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeLLC), Name: "LLC"}
 
@@ -392,4 +444,37 @@ func init() {
 	ProtocolFamilyMetadata[ProtocolFamilyIPv6FreeBSD] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
 	ProtocolFamilyMetadata[ProtocolFamilyIPv6Darwin] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
 	ProtocolFamilyMetadata[ProtocolFamilyIPv6Linux] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
+
+	IEEE80211TypeMetadata[IEEE80211TypeReserved] = EnumMetadata{Name: "Reserved"}
+	IEEE80211TypeMetadata[IEEE80211TypeBeacon] = EnumMetadata{Name: "Beacon"}
+	IEEE80211TypeMetadata[IEEE80211TypeATIM] = EnumMetadata{Name: "ATIM"}
+	IEEE80211TypeMetadata[IEEE80211TypeDisassociation] = EnumMetadata{Name: "Disassociation"}
+	IEEE80211TypeMetadata[IEEE80211TypeAuthentication] = EnumMetadata{Name: "Authentication"}
+	IEEE80211TypeMetadata[IEEE80211TypeDeauthentication] = EnumMetadata{Name: "Deauthentication"}
+	IEEE80211TypeMetadata[IEEE80211TypeAction] = EnumMetadata{Name: "Action"}
+	IEEE80211TypeMetadata[IEEE80211TypeActionNoAck] = EnumMetadata{Name: "ActionNoAck"}
+	IEEE80211TypeMetadata[IEEE80211TypeControlWrapper] = EnumMetadata{Name: "ControlWrapper"}
+	IEEE80211TypeMetadata[IEEE80211TypeBlockAckReq] = EnumMetadata{Name: "BlockAckReq"}
+	IEEE80211TypeMetadata[IEEE80211TypeBlockAck] = EnumMetadata{Name: "BlockAck"}
+	IEEE80211TypeMetadata[IEEE80211TypePSPoll] = EnumMetadata{Name: "PSPoll"}
+	IEEE80211TypeMetadata[IEEE80211TypeRTS] = EnumMetadata{Name: "RTS"}
+	IEEE80211TypeMetadata[IEEE80211TypeCTS] = EnumMetadata{Name: "CTS"}
+	IEEE80211TypeMetadata[IEEE80211TypeACK] = EnumMetadata{Name: "ACK"}
+	IEEE80211TypeMetadata[IEEE80211TypeCFEnd] = EnumMetadata{Name: "CFEnd"}
+	IEEE80211TypeMetadata[IEEE80211TypeCFEndCFAck] = EnumMetadata{Name: "CFEndCFAck"}
+	IEEE80211TypeMetadata[IEEE80211TypeData] = EnumMetadata{Name: "Data", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeDataCFAck] = EnumMetadata{Name: "DataCFAck", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeDataCFPoll] = EnumMetadata{Name: "DataCFPoll", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeDataCFAckCFPoll] = EnumMetadata{Name: "DataCFAckCFPoll", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeNull] = EnumMetadata{Name: "Null"}
+	IEEE80211TypeMetadata[IEEE80211TypeCFAck] = EnumMetadata{Name: "CFAck"}
+	IEEE80211TypeMetadata[IEEE80211TypeCFPoll] = EnumMetadata{Name: "CFPoll"}
+	IEEE80211TypeMetadata[IEEE80211TypeCFAckCFPoll] = EnumMetadata{Name: "CFAckCFPoll"}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSData] = EnumMetadata{Name: "QoSData", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSDataCFAck] = EnumMetadata{Name: "QoSDataCFAck", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSDataCFPoll] = EnumMetadata{Name: "QoSDataCFPoll", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSDataCFAckCFPoll] = EnumMetadata{Name: "QoSDataCFAckCFPoll", DecodeWith: gopacket.DecodeFunc(decodeLLC), LayerType: LayerTypeLLC}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSNull] = EnumMetadata{Name: "QoSNull"}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSCFPoll] = EnumMetadata{Name: "QoSCFPoll"}
+	IEEE80211TypeMetadata[IEEE80211TypeQoSCFAckCFPoll] = EnumMetadata{Name: "QoSCFAckCFPoll"}
 }

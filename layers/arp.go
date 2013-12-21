@@ -32,7 +32,7 @@ type ARP struct {
 	DstProtAddress    []byte
 }
 
-// LayerType returns LayerTypeARP
+// LayerType returns LayerTypeARP.
 func (arp *ARP) LayerType() gopacket.LayerType { return LayerTypeARP }
 
 // DecodeFromBytes decodes the given bytes into this layer.
@@ -101,7 +101,6 @@ func (arp *ARP) NextLayerType() gopacket.LayerType {
 }
 
 func decodeARP(data []byte, p gopacket.PacketBuilder) error {
-
 	arp := &ARP{}
 	return decodingLayerDecoder(arp, data, p)
 }

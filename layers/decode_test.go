@@ -1102,3 +1102,47 @@ func BenchmarkDecodePPPoE_ICMPv6(b *testing.B) {
 		gopacket.NewPacket(testPPPoE_ICMPv6, LinkTypeEthernet, gopacket.NoCopy)
 	}
 }
+
+// testPacketIEEE80211DNS is the packet:
+//   15:30:37.041165 , V.0 DLT (null) (1761607680) len 21504, length 181:
+//      0x0000:  0000 5400 6900 0000 0200 1400 637e cdf3  ..T.i.......c~..
+//      0x0010:  0000 0000 0100 5802 7609 c000 0000 c8a0  ......X.v.......
+//      0x0020:  0400 3000 0600 0000 0200 0000 000f 0228  ..0............(
+//      0x0030:  2222 1eff 2427 21ff 8a09 c000 c2a0 c2a0  ""..$'!.........
+//      0x0040:  bea0 8080 1611 131d 1511 1716 1912 1a16  ................
+//      0x0050:  0000 0000 8801 2c00 0014 a5cd 747b 0014  ......,.....t{..  // have to strip off to 8801 to avoid the PPI encapsulation, which we can't yet support
+//      0x0060:  a5cb 6e1a 0001 0227 f9b2 a0ed 0000 aaaa  ..n....'........
+//      0x0070:  0300 0000 0800 4500 003b 8d06 0000 8011  ......E..;......
+//      0x0080:  29d6 c0a8 0184 c0a8 0101 0407 0035 0027  )............5.'
+//      0x0090:  ab15 96c1 0100 0001 0000 0000 0000 0377  ...............w
+//      0x00a0:  7777 0670 6f6c 6974 6f02 6974 0000 0100  ww.polito.it....
+//      0x00b0:  0178 8059 37                             .x.Y7
+var testPacketIEEE80211DNS = []byte{
+	0x88, 0x01, 0x2c, 0x00, 0x00, 0x14, 0xa5, 0xcd, 0x74, 0x7b, 0x00, 0x14,
+	0xa5, 0xcb, 0x6e, 0x1a, 0x00, 0x01, 0x02, 0x27, 0xf9, 0xb2, 0xa0, 0xed, 0x00, 0x00, 0xaa, 0xaa,
+	0x03, 0x00, 0x00, 0x00, 0x08, 0x00, 0x45, 0x00, 0x00, 0x3b, 0x8d, 0x06, 0x00, 0x00, 0x80, 0x11,
+	0x29, 0xd6, 0xc0, 0xa8, 0x01, 0x84, 0xc0, 0xa8, 0x01, 0x01, 0x04, 0x07, 0x00, 0x35, 0x00, 0x27,
+	0xab, 0x15, 0x96, 0xc1, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x77,
+	0x77, 0x77, 0x06, 0x70, 0x6f, 0x6c, 0x69, 0x74, 0x6f, 0x02, 0x69, 0x74, 0x00, 0x00, 0x01, 0x00,
+	0x01, 0x78, 0x80, 0x59, 0x37,
+}
+
+func TestPacketIEEE80211DNS(t *testing.T) {
+	p := gopacket.NewPacket(testPacketIEEE80211DNS, LinkTypeIEEE802_11, gopacket.Default)
+	if p.ErrorLayer() != nil {
+		t.Error("Failed to decode packet:", p.ErrorLayer().Error())
+	}
+	checkLayers(p, []gopacket.LayerType{
+		LayerTypeIEEE80211,
+		LayerTypeLLC,
+		LayerTypeSNAP,
+		LayerTypeIPv4,
+		LayerTypeUDP,
+		gopacket.LayerTypePayload,
+	}, t)
+}
+func BenchmarkDecodePacketIEEE80211DNS(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		gopacket.NewPacket(testPacketIEEE80211DNS, LinkTypeIEEE802_11, gopacket.NoCopy)
+	}
+}
