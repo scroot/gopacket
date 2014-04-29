@@ -180,39 +180,63 @@ type ProtocolFamily uint8
 
 type IEEE80211Type uint8
 
+const ieee80211MainTypeMask = 0x3
+
+// mainType returns the main type of an IEEE 802.11 type.
+func (i IEEE80211Type) mainType() IEEE80211Type {
+	return i & ieee80211MainTypeMask
+}
+
+// hasQoS returns true if the type has a QoS field.
+func (i IEEE80211Type) hasQoS() bool {
+	return i.mainType() == ieee80211MainTypeData && i&0x20 != 0
+}
+
 const (
-	IEEE80211TypeReserved           IEEE80211Type = 0x07
-	IEEE80211TypeBeacon             IEEE80211Type = 0x08
-	IEEE80211TypeATIM               IEEE80211Type = 0x09
-	IEEE80211TypeDisassociation     IEEE80211Type = 0x0a
-	IEEE80211TypeAuthentication     IEEE80211Type = 0x0b
-	IEEE80211TypeDeauthentication   IEEE80211Type = 0x0c
-	IEEE80211TypeAction             IEEE80211Type = 0x0d
-	IEEE80211TypeActionNoAck        IEEE80211Type = 0x0e
-	IEEE80211TypeControlWrapper     IEEE80211Type = 0x17
-	IEEE80211TypeBlockAckReq        IEEE80211Type = 0x18
-	IEEE80211TypeBlockAck           IEEE80211Type = 0x19
-	IEEE80211TypePSPoll             IEEE80211Type = 0x1a
-	IEEE80211TypeRTS                IEEE80211Type = 0x1b
-	IEEE80211TypeCTS                IEEE80211Type = 0x1c
-	IEEE80211TypeACK                IEEE80211Type = 0x1d
-	IEEE80211TypeCFEnd              IEEE80211Type = 0x1e
-	IEEE80211TypeCFEndCFAck         IEEE80211Type = 0x1f
-	IEEE80211TypeData               IEEE80211Type = 0x20
-	IEEE80211TypeDataCFAck          IEEE80211Type = 0x21
-	IEEE80211TypeDataCFPoll         IEEE80211Type = 0x22
-	IEEE80211TypeDataCFAckCFPoll    IEEE80211Type = 0x23
-	IEEE80211TypeNull               IEEE80211Type = 0x24
-	IEEE80211TypeCFAck              IEEE80211Type = 0x25
-	IEEE80211TypeCFPoll             IEEE80211Type = 0x26
-	IEEE80211TypeCFAckCFPoll        IEEE80211Type = 0x27
-	IEEE80211TypeQoSData            IEEE80211Type = 0x28
-	IEEE80211TypeQoSDataCFAck       IEEE80211Type = 0x29
+	ieee80211MainTypeManagement = 0x00
+	ieee80211MainTypeControl    = 0x01
+	ieee80211MainTypeData       = 0x02
+	// Management
+	IEEE80211TypeAssociationRequest    IEEE80211Type = 0x00
+	IEEE80211TypeAssociationResponse   IEEE80211Type = 0x04
+	IEEE80211TypeReassociationRequest  IEEE80211Type = 0x08
+	IEEE80211TypeReassociationResponse IEEE80211Type = 0x0c
+	IEEE80211TypeProbeRequest          IEEE80211Type = 0x10
+	IEEE80211TypeProbeResponse         IEEE80211Type = 0x14
+	IEEE80211TypeTimingAdvertisement   IEEE80211Type = 0x18
+	IEEE80211TypeBeacon                IEEE80211Type = 0x20
+	IEEE80211TypeATIM                  IEEE80211Type = 0x24
+	IEEE80211TypeDisassociation        IEEE80211Type = 0x28
+	IEEE80211TypeAuthentication        IEEE80211Type = 0x2c
+	IEEE80211TypeDeauthentication      IEEE80211Type = 0x30
+	IEEE80211TypeAction                IEEE80211Type = 0x34
+	IEEE80211TypeActionNoAck           IEEE80211Type = 0x38
+	// Control
+	IEEE80211TypeControlWrapper IEEE80211Type = 0x1d
+	IEEE80211TypeBlockAckReq    IEEE80211Type = 0x21
+	IEEE80211TypeBlockAck       IEEE80211Type = 0x25
+	IEEE80211TypePSPoll         IEEE80211Type = 0x29
+	IEEE80211TypeRTS            IEEE80211Type = 0x2d
+	IEEE80211TypeCTS            IEEE80211Type = 0x31
+	IEEE80211TypeACK            IEEE80211Type = 0x35
+	IEEE80211TypeCFEnd          IEEE80211Type = 0x39
+	IEEE80211TypeCFEndCFAck     IEEE80211Type = 0x3d
+	// Data
+	IEEE80211TypeData               IEEE80211Type = 0x02
+	IEEE80211TypeDataCFAck          IEEE80211Type = 0x06
+	IEEE80211TypeDataCFPoll         IEEE80211Type = 0x0a
+	IEEE80211TypeDataCFAckCFPoll    IEEE80211Type = 0x0e
+	IEEE80211TypeNull               IEEE80211Type = 0x12
+	IEEE80211TypeCFAck              IEEE80211Type = 0x16
+	IEEE80211TypeCFPoll             IEEE80211Type = 0x1a
+	IEEE80211TypeCFAckCFPoll        IEEE80211Type = 0x1e
+	IEEE80211TypeQoSData            IEEE80211Type = 0x22
+	IEEE80211TypeQoSDataCFAck       IEEE80211Type = 0x26
 	IEEE80211TypeQoSDataCFPoll      IEEE80211Type = 0x2a
-	IEEE80211TypeQoSDataCFAckCFPoll IEEE80211Type = 0x2b
-	IEEE80211TypeQoSNull            IEEE80211Type = 0x2c
-	IEEE80211TypeQoSCFPoll          IEEE80211Type = 0x2e
-	IEEE80211TypeQoSCFAckCFPoll     IEEE80211Type = 0x2f
+	IEEE80211TypeQoSDataCFAckCFPoll IEEE80211Type = 0x2e
+	IEEE80211TypeQoSNull            IEEE80211Type = 0x32
+	IEEE80211TypeQoSCFPoll          IEEE80211Type = 0x3a
+	IEEE80211TypeQoSCFAckCFPoll     IEEE80211Type = 0x3e
 )
 
 var (
@@ -445,7 +469,13 @@ func init() {
 	ProtocolFamilyMetadata[ProtocolFamilyIPv6Darwin] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
 	ProtocolFamilyMetadata[ProtocolFamilyIPv6Linux] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
 
-	IEEE80211TypeMetadata[IEEE80211TypeReserved] = EnumMetadata{Name: "Reserved"}
+	IEEE80211TypeMetadata[IEEE80211TypeAssociationRequest] = EnumMetadata{Name: "AssociationRequest"}
+	IEEE80211TypeMetadata[IEEE80211TypeAssociationResponse] = EnumMetadata{Name: "AssociationResponse"}
+	IEEE80211TypeMetadata[IEEE80211TypeReassociationRequest] = EnumMetadata{Name: "ReassociationRequest"}
+	IEEE80211TypeMetadata[IEEE80211TypeReassociationResponse] = EnumMetadata{Name: "ReassociationResponse"}
+	IEEE80211TypeMetadata[IEEE80211TypeProbeRequest] = EnumMetadata{Name: "ProbeRequest"}
+	IEEE80211TypeMetadata[IEEE80211TypeProbeResponse] = EnumMetadata{Name: "ProbeResponse"}
+	IEEE80211TypeMetadata[IEEE80211TypeTimingAdvertisement] = EnumMetadata{Name: "TimingAdvertisement"}
 	IEEE80211TypeMetadata[IEEE80211TypeBeacon] = EnumMetadata{Name: "Beacon"}
 	IEEE80211TypeMetadata[IEEE80211TypeATIM] = EnumMetadata{Name: "ATIM"}
 	IEEE80211TypeMetadata[IEEE80211TypeDisassociation] = EnumMetadata{Name: "Disassociation"}

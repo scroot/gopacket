@@ -4,6 +4,8 @@
 // that can be found in the LICENSE file in the root of the source
 // tree.
 
+// +build linux
+
 // synscan implements a TCP syn scanner on top of pcap.
 // It's more complicated than arpscan, since it has to handle sending packets
 // outside the local network, requiring some routing and ARP work.
