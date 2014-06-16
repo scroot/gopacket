@@ -23,24 +23,20 @@ import (
 
 var mode = flag.String("mode", "basic", "One of: basic,filtered,timestamp")
 
+func generatePackets() {
+	if resp, err := http.Get("http://code.google.com"); err != nil {
+		log.Printf("Could not get HTTP: %v", err)
+	} else {
+		resp.Body.Close()
+	}
+}
+
 func main() {
 	flag.Parse()
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.Fatal(err)
 	}
-	go func() {
-		// Generate traffic to look for.
-		for _ = range time.Tick(time.Second) {
-			go func() {
-				if resp, err := http.Get("http://code.google.com"); err != nil {
-					log.Printf("Could not get HTTP: %v", err)
-				} else {
-					resp.Body.Close()
-				}
-			}()
-		}
-	}()
 	for _, iface := range ifaces {
 		log.Printf("Trying capture on %q", iface.Name)
 		if err := tryCapture(iface); err != nil {
@@ -57,28 +53,50 @@ func tryCapture(iface net.Interface) error {
 	if iface.Name[:2] == "lo" {
 		return fmt.Errorf("skipping loopback")
 	}
-	h, err := pcap.OpenLive(iface.Name, 65536, false, time.Second*3)
-	if err != nil {
-		return fmt.Errorf("openlive: %v", err)
-	}
-	defer h.Close()
+	var h *pcap.Handle
+	var err error
 	switch *mode {
 	case "basic":
+		h, err = pcap.OpenLive(iface.Name, 65536, false, time.Second*3)
+		if err != nil {
+			return fmt.Errorf("openlive: %v", err)
+		}
+		defer h.Close()
 	case "filtered":
+		h, err = pcap.OpenLive(iface.Name, 65536, false, time.Second*3)
+		if err != nil {
+			return fmt.Errorf("openlive: %v", err)
+		}
+		defer h.Close()
 		if err := h.SetBPFFilter("port 80 or port 443"); err != nil {
 			return fmt.Errorf("setbpf: %v", err)
 		}
 	case "timestamp":
-		sources := h.SupportedTimestamps()
+		u, err := pcap.NewInactiveHandle(iface.Name)
+		if err != nil {
+			return err
+		}
+		defer u.CleanUp()
+		if err = u.SetSnapLen(65536); err != nil {
+			return err
+		} else if err = u.SetPromisc(false); err != nil {
+			return err
+		} else if err = u.SetTimeout(time.Second * 3); err != nil {
+			return err
+		}
+		sources := u.SupportedTimestamps()
 		if len(sources) == 0 {
 			return fmt.Errorf("no supported timestamp sources")
-		}
-		if err := h.SetTimestampSource(sources[0]); err != nil {
+		} else if err := u.SetTimestampSource(sources[0]); err != nil {
 			return fmt.Errorf("settimestampsource(%v): %v", sources[0], err)
+		} else if h, err = u.Activate(); err != nil {
+			return fmt.Errorf("could not activate: %v", err)
 		}
+		defer h.Close()
 	default:
 		panic("Invalid --mode: " + *mode)
 	}
+	go generatePackets()
 	h.ReadPacketData() // Do one dummy read to clear any timeouts.
 	data, ci, err := h.ReadPacketData()
 	if err != nil {

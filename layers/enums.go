@@ -239,6 +239,16 @@ const (
 	IEEE80211TypeQoSCFAckCFPoll     IEEE80211Type = 0x3e
 )
 
+const (
+	ProtocolFamilyIPv4 ProtocolFamily = 2
+	// BSDs use different values for INET6... glory be.  These values taken from
+	// tcpdump 4.3.0.
+	ProtocolFamilyIPv6BSD     ProtocolFamily = 24
+	ProtocolFamilyIPv6FreeBSD ProtocolFamily = 28
+	ProtocolFamilyIPv6Darwin  ProtocolFamily = 30
+	ProtocolFamilyIPv6Linux   ProtocolFamily = 10
+)
+
 var (
 	// Each of the following arrays contains mappings of how to handle enum
 	// values for various enum types in gopacket/layers.
@@ -334,6 +344,10 @@ func (a IEEE80211Type) String() string {
 }
 func (a IEEE80211Type) LayerType() gopacket.LayerType {
 	return IEEE80211TypeMetadata[a].LayerType
+}
+
+func (a ProtocolFamily) LayerType() gopacket.LayerType {
+	return ProtocolFamilyMetadata[a].LayerType
 }
 
 // Decode a raw v4 or v6 IP packet.
@@ -458,16 +472,11 @@ func init() {
 	LinkTypeMetadata[LinkTypeLoop] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeLoopback), Name: "Loop"}
 	LinkTypeMetadata[LinkTypeRaw] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv4or6), Name: "Raw"}
 	LinkTypeMetadata[LinkTypeIEEE802_11] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIEEE80211), Name: "IEEE80211"}
+	LinkTypeMetadata[LinkTypePFLog] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodePFLog), Name: "PFLog"}
 
 	FDDIFrameControlMetadata[FDDIFrameControlLLC] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeLLC), Name: "LLC"}
 
 	EAPOLTypeMetadata[EAPOLTypeEAP] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeEAP), Name: "EAP", LayerType: LayerTypeEAP}
-
-	ProtocolFamilyMetadata[ProtocolFamilyIPv4] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv4), Name: "IPv4"}
-	ProtocolFamilyMetadata[ProtocolFamilyIPv6BSD] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
-	ProtocolFamilyMetadata[ProtocolFamilyIPv6FreeBSD] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
-	ProtocolFamilyMetadata[ProtocolFamilyIPv6Darwin] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
-	ProtocolFamilyMetadata[ProtocolFamilyIPv6Linux] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6"}
 
 	IEEE80211TypeMetadata[IEEE80211TypeAssociationRequest] = EnumMetadata{Name: "AssociationRequest"}
 	IEEE80211TypeMetadata[IEEE80211TypeAssociationResponse] = EnumMetadata{Name: "AssociationResponse"}
@@ -507,4 +516,10 @@ func init() {
 	IEEE80211TypeMetadata[IEEE80211TypeQoSNull] = EnumMetadata{Name: "QoSNull"}
 	IEEE80211TypeMetadata[IEEE80211TypeQoSCFPoll] = EnumMetadata{Name: "QoSCFPoll"}
 	IEEE80211TypeMetadata[IEEE80211TypeQoSCFAckCFPoll] = EnumMetadata{Name: "QoSCFAckCFPoll"}
+
+	ProtocolFamilyMetadata[ProtocolFamilyIPv4] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv4), Name: "IPv4", LayerType: LayerTypeIPv4}
+	ProtocolFamilyMetadata[ProtocolFamilyIPv6BSD] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6", LayerType: LayerTypeIPv6}
+	ProtocolFamilyMetadata[ProtocolFamilyIPv6FreeBSD] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6", LayerType: LayerTypeIPv6}
+	ProtocolFamilyMetadata[ProtocolFamilyIPv6Darwin] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6", LayerType: LayerTypeIPv6}
+	ProtocolFamilyMetadata[ProtocolFamilyIPv6Linux] = EnumMetadata{DecodeWith: gopacket.DecodeFunc(decodeIPv6), Name: "IPv6", LayerType: LayerTypeIPv6}
 }

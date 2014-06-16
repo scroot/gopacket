@@ -64,7 +64,8 @@ var (
 	LayerTypeLinkLayerDiscoveryInfo = gopacket.RegisterLayerType(60, gopacket.LayerTypeMetadata{"LinkLayerDiscoveryInfo", nil})
 	LayerTypeNortelDiscovery        = gopacket.RegisterLayerType(61, gopacket.LayerTypeMetadata{"NortelDiscovery", gopacket.DecodeFunc(decodeNortelDiscovery)})
 	LayerTypeIGMP                   = gopacket.RegisterLayerType(62, gopacket.LayerTypeMetadata{"IGMP", gopacket.DecodeFunc(decodeIGMP)})
-	LayerTypeIEEE80211              = gopacket.RegisterLayerType(63, gopacket.LayerTypeMetadata{"IEEE80211", gopacket.DecodeFunc(decodeIEEE80211)})
+	LayerTypePFLog                  = gopacket.RegisterLayerType(63, gopacket.LayerTypeMetadata{"PFLog", gopacket.DecodeFunc(decodePFLog)})
+	LayerTypeIEEE80211              = gopacket.RegisterLayerType(64, gopacket.LayerTypeMetadata{"IEEE80211", gopacket.DecodeFunc(decodeIEEE80211)})
 )
 
 var (
