@@ -9,6 +9,7 @@ package layers
 import (
 	"code.google.com/p/gopacket"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 )
@@ -132,13 +133,50 @@ const (
 // +---------------------+
 // |      Additional     | RRs holding additional information
 // +---------------------+
+//
+//  DNS Header
+//  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                      ID                       |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                    QDCOUNT                    |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                    ANCOUNT                    |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                    NSCOUNT                    |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                    ARCOUNT                    |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+// DNS provides decoding for a single domain name packet.
+//
+// DNS records store names using a simple compression algorithm, where parts of
+// names are reused from other parts of the packet.  This unfortunately means
+// that decoding a DNS packet requires a bunch of extra storage and memory
+// allocation.
+//
+// In this implementation, we get around that issue by having users lazily
+// request hard-to-compute values via the Entries function, which does all of
+// the Question/Answer/Authority/etc... computation at call-time.
+//
+// Future work may rework that, should we find a better way of decoding that
+// doesn't do tons of memory allocation, but that call will always work, so it
+// should future-proof code that uses it.
 type DNS struct {
 	BaseLayer
-	Header      DNSHeader
-	Questions   []DNSQuestion
-	Answers     []DNSResourceRecord
-	Authorities []DNSResourceRecord
-	Additionals []DNSResourceRecord
+
+	ID             uint16
+	QR             bool
+	OpCode         DNSOpCode
+	AA, TC, RD, RA bool
+	Z              uint8
+	ResponseCode   DNSResponseCode
+	QDCount        uint16
+	ANCount        uint16
+	NSCount        uint16
+	ARCount        uint16
 }
 
 // LayerType returns gopacket.LayerTypeDNS.
@@ -162,48 +200,72 @@ func (d *DNS) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	//TODO Review Wireshark dissector code, could be
 
 	if len(data) < 12 {
+		df.SetTruncated()
 		return fmt.Errorf("DNS packet too short")
 	}
-
-	if err := d.Header.decode(data, df); err != nil {
-		return err
-	}
-
-	offset := 12
-	var err error
-	for i := 0; i < int(d.Header.QDCount); i++ {
-		q := DNSQuestion{}
-		if offset, err = q.decode(data, offset, df); err != nil {
-			return err
-		}
-		d.Questions = append(d.Questions, q)
-	}
-
-	for i := 0; i < int(d.Header.ANCount); i++ {
-		a := DNSResourceRecord{}
-		if offset, err = a.decode(data, offset, df); err != nil {
-			return err
-		}
-		d.Answers = append(d.Answers, a)
-	}
-
-	for i := 0; i < int(d.Header.NSCount); i++ {
-		a := DNSResourceRecord{}
-		if offset, err = a.decode(data, offset, df); err != nil {
-			return err
-		}
-		d.Authorities = append(d.Authorities, a)
-	}
-
-	for i := 0; i < int(d.Header.ARCount); i++ {
-		a := DNSResourceRecord{}
-		if offset, err = a.decode(data, offset, df); err != nil {
-			return err
-		}
-		d.Additionals = append(d.Additionals, a)
-	}
-
+	d.Contents = data
+	d.ID = binary.BigEndian.Uint16(data[:2])
+	d.QR = data[2]&0x80 != 0
+	d.OpCode = DNSOpCode((data[2] >> 3) & 0xf)
+	d.AA = data[2]&0x4 != 0
+	d.TC = data[2]&0x2 != 0
+	d.RD = data[2]&0x1 != 0
+	d.RA = data[3]&0x8 != 0
+	d.Z = uint8((data[3] >> 4) & 0x7)
+	d.ResponseCode = DNSResponseCode(data[3] & 0xf)
+	d.QDCount = binary.BigEndian.Uint16(data[4:6])
+	d.ANCount = binary.BigEndian.Uint16(data[6:8])
+	d.NSCount = binary.BigEndian.Uint16(data[8:10])
+	d.ARCount = binary.BigEndian.Uint16(data[10:12])
 	return nil
+}
+
+// Entries decodes the questions, answers, authorities, and additional data
+// stored inside a DNS packet and returns them.  Note that this call does
+// numerous memory allocations and the like, since it requires the creation of a
+// number of strings and values.
+func (d *DNS) Entries() (questions []DNSQuestion, answers, authorities, additionals []DNSResourceRecord, err error) {
+	offset := 12
+	data := d.Contents
+	for i := 0; i < int(d.QDCount); i++ {
+		q := DNSQuestion{}
+		if offset, err = q.decode(data, offset); err != nil {
+			return
+		}
+		questions = append(questions, q)
+	}
+	for i := 0; i < int(d.ANCount); i++ {
+		a := DNSResourceRecord{}
+		if offset, err = a.decode(data, offset); err != nil {
+			return
+		}
+		answers = append(answers, a)
+	}
+	for i := 0; i < int(d.NSCount); i++ {
+		a := DNSResourceRecord{}
+		if offset, err = a.decode(data, offset); err != nil {
+			return
+		}
+		authorities = append(authorities, a)
+	}
+	for i := 0; i < int(d.ARCount); i++ {
+		a := DNSResourceRecord{}
+		if offset, err = a.decode(data, offset); err != nil {
+			return
+		}
+		additionals = append(additionals, a)
+	}
+	switch {
+	case uint16(len(questions)) != d.QDCount:
+		err = errors.New("Invalid query decoding, not the right number of questions")
+	case uint16(len(answers)) != d.ANCount:
+		err = errors.New("Invalid query decoding, not the right number of answers")
+	case uint16(len(authorities)) != d.NSCount:
+		err = errors.New("Invalid query decoding, not the right number of authorities")
+	case uint16(len(additionals)) != d.ARCount:
+		err = errors.New("Invalid query decoding, not the right number of additionals info")
+	}
+	return
 }
 
 func (d *DNS) CanDecode() gopacket.LayerClass {
@@ -215,56 +277,6 @@ func (d *DNS) NextLayerType() gopacket.LayerType {
 }
 
 func (d *DNS) Payload() []byte {
-	return nil
-}
-
-//  DNS Header
-//  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |                      ID                       |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |                    QDCOUNT                    |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |                    ANCOUNT                    |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |                    NSCOUNT                    |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-//  |                    ARCOUNT                    |
-//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
-// DNSHeader is the header struct representing DNS headers
-type DNSHeader struct {
-	Id             uint16
-	Qr             bool
-	OpCode         DNSOpCode
-	AA, TC, RD, RA bool
-	Z              uint8
-	ResponseCode   DNSResponseCode
-	QDCount        uint16
-	ANCount        uint16
-	NSCount        uint16
-	ARCount        uint16
-}
-
-// decode takes a []byte representing the data, and decode into the
-// DNSHeader struct
-func (h *DNSHeader) decode(data []byte, df gopacket.DecodeFeedback) error {
-	h.Id = binary.BigEndian.Uint16(data[:2])
-	h.Qr = data[2]>>7 != 0
-	h.OpCode = DNSOpCode((data[2] >> 3) & 0xf)
-	h.AA = (data[2] >> 2 & 0x1) != 0
-	h.TC = (data[2] >> 1 & 0x1) != 0
-	h.RD = (data[2] & 0x1) != 0
-	h.RA = (data[3] >> 7 & 0x1) != 0
-	h.Z = uint8(data[3] >> 4 & 0x7)
-	h.ResponseCode = DNSResponseCode(data[3] & 0xf)
-	h.QDCount = binary.BigEndian.Uint16(data[4:6])
-	h.ANCount = binary.BigEndian.Uint16(data[6:8])
-	h.NSCount = binary.BigEndian.Uint16(data[8:10])
-	h.ARCount = binary.BigEndian.Uint16(data[10:12])
-
 	return nil
 }
 
@@ -341,7 +353,7 @@ type DNSQuestion struct {
 	Class DNSClass
 }
 
-func (q *DNSQuestion) decode(data []byte, offset int, df gopacket.DecodeFeedback) (int, error) {
+func (q *DNSQuestion) decode(data []byte, offset int) (int, error) {
 	name, endq, err := decodeName(data, offset)
 	if err != nil {
 		return 0, err
@@ -395,7 +407,7 @@ type DNSResourceRecord struct {
 }
 
 // decode decodes the resource record, returning the total length of the record.
-func (rr *DNSResourceRecord) decode(data []byte, offset int, df gopacket.DecodeFeedback) (int, error) {
+func (rr *DNSResourceRecord) decode(data []byte, offset int) (int, error) {
 	name, endq, err := decodeName(data, offset)
 	if err != nil {
 		return 0, err

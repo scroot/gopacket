@@ -130,27 +130,24 @@ var testDNSQueryA = []byte{
 func TestDNSQueryA(t *testing.T) {
 	dns := loadDNS(testDNSQueryA, t)
 	if dns == nil {
-		t.Error("Failed to get a pointer to DNS struct")
-		return
+		t.Fatal("Failed to get a pointer to DNS struct")
+	}
+	questions, _, _, _, err := dns.Entries()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if uint16(len(dns.Questions)) != dns.Header.QDCount {
-		t.Error("Invalid query decoding, not the right number of questions")
-		return
-	}
-
-	if dns.Questions[0].Name != "www.google.com" {
+	if questions[0].Name != "www.google.com" {
 		t.Errorf("Invalid query decoding, expecting 'www.google.com', got '%s'",
-			dns.Questions[0].Name)
+			questions[0].Name)
 	}
-	if dns.Questions[0].Class != DNSClassIN {
+	if questions[0].Class != DNSClassIN {
 		t.Errorf("Invalid query decoding, expecting Class IN, got '%d'",
-			dns.Questions[0].Class)
+			questions[0].Class)
 	}
-
-	if dns.Questions[0].Type != DNSTypeA {
+	if questions[0].Type != DNSTypeA {
 		t.Errorf("Invalid query decoding, expecting Type A, got '%d'",
-			dns.Questions[0].Type)
+			questions[0].Type)
 	}
 }
 
@@ -199,59 +196,45 @@ var testDNSRRA = []byte{
 func TestDNSRRA(t *testing.T) {
 	dns := loadDNS(testDNSRRA, t)
 	if dns == nil {
-		t.Error("Failed to get a pointer to DNS struct")
-		return
+		t.Fatal("Failed to get a pointer to DNS struct")
+	}
+	questions, answers, authorities, additionals, err := dns.Entries()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if uint16(len(dns.Questions)) != dns.Header.QDCount {
-		t.Error("Invalid query decoding, not the right number of questions")
-		return
-	}
-	if uint16(len(dns.Answers)) != dns.Header.ANCount {
-		t.Error("Invalid query decoding, not the right number of answers")
-		return
-	}
-	if uint16(len(dns.Authorities)) != dns.Header.NSCount {
-		t.Error("Invalid query decoding, not the right number of authorities")
-		return
-	}
-	if uint16(len(dns.Additionals)) != dns.Header.ARCount {
-		t.Error("Invalid query decoding, not the right number of additionals info")
-		return
-	}
-
-	if dns.Questions[0].Name != "www.google.com" {
+	if questions[0].Name != "www.google.com" {
 		t.Errorf("Invalid query decoding, expecting 'www.google.com', got '%s'",
-			dns.Questions[0].Name)
+			questions[0].Name)
 	}
-	if dns.Answers[0].Name != "www.google.com" {
+	if answers[0].Name != "www.google.com" {
 		t.Errorf("Invalid query decoding, expecting 'www.google.com', got '%d'",
-			dns.Questions[0].Class)
+			questions[0].Class)
 	}
-	if dns.Answers[0].Class != DNSClassIN {
+	if answers[0].Class != DNSClassIN {
 		t.Errorf("Invalid query decoding, expecting Class IN, got '%d'",
-			dns.Questions[0].Class)
+			questions[0].Class)
 	}
-	if dns.Answers[0].Type != DNSTypeA {
+	if answers[0].Type != DNSTypeA {
 		t.Errorf("Invalid query decoding, expecting Type A, got '%d'",
-			dns.Questions[0].Type)
+			questions[0].Type)
 	}
-	if !dns.Answers[0].IP.Equal([]byte{74, 125, 195, 103}) {
+	if !answers[0].IP.Equal([]byte{74, 125, 195, 103}) {
 		t.Errorf("Invalid query decoding, invalid IP address,"+
 			" expecting '74.125.195.103', got '%s'",
-			dns.Answers[0].IP.String())
+			answers[0].IP.String())
 	}
-	if len(dns.Answers) != 6 {
+	if len(answers) != 6 {
 		t.Errorf("No correct number of answers, expecting 6, go '%d'",
-			len(dns.Answers))
+			len(answers))
 	}
-	if len(dns.Authorities) != 4 {
+	if len(authorities) != 4 {
 		t.Errorf("No correct number of answers, expecting 4, go '%d'",
-			len(dns.Answers))
+			len(answers))
 	}
-	if len(dns.Additionals) != 4 {
+	if len(additionals) != 4 {
 		t.Errorf("No correct number of answers, expecting 4, go '%d'",
-			len(dns.Answers))
+			len(answers))
 	}
 
 }
@@ -295,23 +278,27 @@ func TestDNSAAAA(t *testing.T) {
 		t.Error("Failed to get a pointer to DNS struct")
 		return
 	}
+	questions, answers, _, _, err := dns.Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(dns.Questions) != 1 {
+	if len(questions) != 1 {
 		t.Error("Invalid number of question")
 		return
 	}
-	if dns.Questions[0].Type != DNSTypeAAAA {
+	if questions[0].Type != DNSTypeAAAA {
 		t.Error("Invalid question, Type is not AAAA, found %d",
-			dns.Questions[0].Type)
+			questions[0].Type)
 	}
 
-	if len(dns.Answers) != 1 {
+	if len(answers) != 1 {
 		t.Error("Invalid number of answers")
 	}
-	if !dns.Answers[0].IP.Equal([]byte{0x2a, 0x00, 0x14, 0x50, 0x40,
+	if !answers[0].IP.Equal([]byte{0x2a, 0x00, 0x14, 0x50, 0x40,
 		0x0c, 0x0c, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x69}) {
 		t.Error("Invalid IP address, found ",
-			dns.Answers[0].IP.String())
+			answers[0].IP.String())
 	}
 }
 
@@ -340,10 +327,14 @@ func TestDNSMXSOA(t *testing.T) {
 		t.Error("Failed to get a pointer to DNS struct")
 		return
 	}
+	_, _, authorities, _, err := dns.Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if len(dns.Authorities) != 1 {
+	if len(authorities) != 1 {
 		t.Error("Invalid number of authoritative answers, found ",
-			len(dns.Authorities))
+			len(authorities))
 		return
 	}
 }
