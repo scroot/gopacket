@@ -296,7 +296,7 @@ func (a Dot11InformationElementID) String() string {
 	case Dot11InformationElementIDReserved:
 		return "Reserved"
 	default:
-		return "Unknown information element id"
+		return fmt.Sprintf("Unknown information element id(%d)", a)
 	}
 }
 
@@ -368,12 +368,8 @@ func (m *Dot11) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 		offset += 6
 	}
 
-	if mainType == Dot11TypeData {
-		m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset:len(data)]}
-	} else {
-		m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset : len(data)-4]}
-		m.Checksum = binary.LittleEndian.Uint32(data[len(data)-4 : len(data)])
-	}
+	m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset : len(data)-4]}
+	m.Checksum = binary.LittleEndian.Uint32(data[len(data)-4 : len(data)])
 	return nil
 }
 
@@ -390,9 +386,9 @@ type Dot11Mgmt struct {
 	BaseLayer
 }
 
-func (m *Dot11Mgmt) NextLayerType() gopacket.LayerType { return gopacket.LayerTypePayload }
+func (m *Dot11Mgmt) NextLayerType() gopacket.LayerType { return LayerTypeDot11InformationElement }
 func (m *Dot11Mgmt) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
-	m.Contents = data
+	m.Payload = data
 	return nil
 }
 
@@ -576,7 +572,9 @@ func (m *Dot11DataQOS) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) 
 	m.AckPolicy = Dot11AckPolicy((uint8(data[0]) & 0x60) >> 5)
 	m.TXOP = uint8(data[1])
 	// TODO: Mesh Control bytes 2:4
-	m.BaseLayer = BaseLayer{Contents: data[0:4], Payload: data[4:]}
+	if data[1]&0x02 != 0 { // Mesh Control Present subfield
+		m.BaseLayer = BaseLayer{Contents: data[0:4], Payload: data[4:]}
+	}
 	return nil
 }
 
@@ -722,8 +720,8 @@ func (m *Dot11InformationElement) DecodeFromBytes(data []byte, df gopacket.Decod
 
 	if m.ID == 221 {
 		// Vendor extension
-		m.OUI = data[offset : offset+4]
-		m.Info = data[offset+4 : offset+m.Length]
+		m.OUI = data[offset : offset+3]
+		m.Info = data[offset+3 : offset+m.Length]
 	} else {
 		m.Info = data[offset : offset+m.Length]
 	}
@@ -748,7 +746,7 @@ func (d *Dot11InformationElement) String() string {
 		}
 		return fmt.Sprintf("802.11 Information Element (Rates: %s Mbit)", rates)
 	} else if d.ID == 221 {
-		return fmt.Sprintf("802.11 Information Element (Vendor: ID: %v, Length: %v, OUI: %X, Info: %X)", d.ID, d.Length, d.OUI, d.Info)
+		return fmt.Sprintf("802.11 Information Element (ID: %v, Length: %v, OUI: %X, Info: %X)", d.ID, d.Length, d.OUI, d.Info)
 	} else {
 		return fmt.Sprintf("802.11 Information Element (ID: %v, Length: %v, Info: %X)", d.ID, d.Length, d.Info)
 	}
@@ -920,13 +918,10 @@ func (m *Dot11MgmtAssociationReq) LayerType() gopacket.LayerType {
 func (m *Dot11MgmtAssociationReq) CanDecode() gopacket.LayerClass {
 	return LayerTypeDot11MgmtAssociationReq
 }
-func (m *Dot11MgmtAssociationReq) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 func (m *Dot11MgmtAssociationReq) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.CapabilityInfo = binary.LittleEndian.Uint16(data[0:2])
 	m.ListenInterval = binary.LittleEndian.Uint16(data[2:4])
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[4:], df)
 }
 
 type Dot11MgmtAssociationResp struct {
@@ -947,14 +942,11 @@ func (m *Dot11MgmtAssociationResp) CanDecode() gopacket.LayerClass {
 func (m *Dot11MgmtAssociationResp) LayerType() gopacket.LayerType {
 	return LayerTypeDot11MgmtAssociationResp
 }
-func (m *Dot11MgmtAssociationResp) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 func (m *Dot11MgmtAssociationResp) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.CapabilityInfo = binary.LittleEndian.Uint16(data[0:2])
 	m.Status = Dot11Status(binary.LittleEndian.Uint16(data[2:4]))
 	m.AID = binary.LittleEndian.Uint16(data[4:6])
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[6:], df)
 }
 
 type Dot11MgmtReassociationReq struct {
@@ -975,14 +967,11 @@ func (m *Dot11MgmtReassociationReq) LayerType() gopacket.LayerType {
 func (m *Dot11MgmtReassociationReq) CanDecode() gopacket.LayerClass {
 	return LayerTypeDot11MgmtReassociationReq
 }
-func (m *Dot11MgmtReassociationReq) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 func (m *Dot11MgmtReassociationReq) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.CapabilityInfo = binary.LittleEndian.Uint16(data[0:2])
 	m.ListenInterval = binary.LittleEndian.Uint16(data[2:4])
 	m.CurrentApAddress = net.HardwareAddr(data[4:10])
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[10:], df)
 }
 
 type Dot11MgmtReassociationResp struct {
@@ -1000,9 +989,6 @@ func (m *Dot11MgmtReassociationResp) LayerType() gopacket.LayerType {
 func (m *Dot11MgmtReassociationResp) CanDecode() gopacket.LayerClass {
 	return LayerTypeDot11MgmtReassociationResp
 }
-func (m *Dot11MgmtReassociationResp) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 
 type Dot11MgmtProbeReq struct {
 	Dot11Mgmt
@@ -1015,12 +1001,12 @@ func decodeDot11MgmtProbeReq(data []byte, p gopacket.PacketBuilder) error {
 
 func (m *Dot11MgmtProbeReq) LayerType() gopacket.LayerType  { return LayerTypeDot11MgmtProbeReq }
 func (m *Dot11MgmtProbeReq) CanDecode() gopacket.LayerClass { return LayerTypeDot11MgmtProbeReq }
-func (m *Dot11MgmtProbeReq) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 
 type Dot11MgmtProbeResp struct {
 	Dot11Mgmt
+	Timestamp uint64
+	Interval  uint16
+	Flags     uint16
 }
 
 func decodeDot11MgmtProbeResp(data []byte, p gopacket.PacketBuilder) error {
@@ -1030,12 +1016,17 @@ func decodeDot11MgmtProbeResp(data []byte, p gopacket.PacketBuilder) error {
 
 func (m *Dot11MgmtProbeResp) LayerType() gopacket.LayerType  { return LayerTypeDot11MgmtProbeResp }
 func (m *Dot11MgmtProbeResp) CanDecode() gopacket.LayerClass { return LayerTypeDot11MgmtProbeResp }
-func (m *Dot11MgmtProbeResp) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
+func (m *Dot11MgmtProbeResp) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+	m.Timestamp = binary.LittleEndian.Uint64(data[0:8])
+	m.Interval = binary.LittleEndian.Uint16(data[8:10])
+	m.Flags = binary.LittleEndian.Uint16(data[10:12])
+	return m.Dot11Mgmt.DecodeFromBytes(data[12:], df)
 }
 
 type Dot11MgmtMeasurementPilot struct {
 	Dot11Mgmt
+	Timestamp uint64
+	Flags     uint16
 }
 
 func decodeDot11MgmtMeasurementPilot(data []byte, p gopacket.PacketBuilder) error {
@@ -1048,6 +1039,11 @@ func (m *Dot11MgmtMeasurementPilot) LayerType() gopacket.LayerType {
 }
 func (m *Dot11MgmtMeasurementPilot) CanDecode() gopacket.LayerClass {
 	return LayerTypeDot11MgmtMeasurementPilot
+}
+func (m *Dot11MgmtMeasurementPilot) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+	m.Timestamp = binary.LittleEndian.Uint64(data[0:8])
+	m.Flags = binary.LittleEndian.Uint16(data[8:10])
+	return m.Dot11Mgmt.DecodeFromBytes(data[10:], df)
 }
 
 type Dot11MgmtBeacon struct {
@@ -1068,10 +1064,8 @@ func (m *Dot11MgmtBeacon) DecodeFromBytes(data []byte, df gopacket.DecodeFeedbac
 	m.Timestamp = binary.LittleEndian.Uint64(data[0:8])
 	m.Interval = binary.LittleEndian.Uint16(data[8:10])
 	m.Flags = binary.LittleEndian.Uint16(data[10:12])
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[12:], df)
 }
-
-func (m *Dot11MgmtBeacon) NextLayerType() gopacket.LayerType { return LayerTypeDot11InformationElement }
 
 type Dot11MgmtATIM struct {
 	Dot11Mgmt
@@ -1103,7 +1097,7 @@ func (m *Dot11MgmtDisassociation) CanDecode() gopacket.LayerClass {
 }
 func (m *Dot11MgmtDisassociation) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.Reason = Dot11Reason(binary.LittleEndian.Uint16(data[0:2]))
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[2:], df)
 }
 
 type Dot11MgmtAuthentication struct {
@@ -1124,14 +1118,11 @@ func (m *Dot11MgmtAuthentication) LayerType() gopacket.LayerType {
 func (m *Dot11MgmtAuthentication) CanDecode() gopacket.LayerClass {
 	return LayerTypeDot11MgmtAuthentication
 }
-func (m *Dot11MgmtAuthentication) NextLayerType() gopacket.LayerType {
-	return LayerTypeDot11InformationElement
-}
 func (m *Dot11MgmtAuthentication) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.Algorithm = Dot11Algorithm(binary.LittleEndian.Uint16(data[0:2]))
 	m.Sequence = binary.LittleEndian.Uint16(data[2:4])
 	m.Status = Dot11Status(binary.LittleEndian.Uint16(data[4:6]))
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[6:], df)
 }
 
 type Dot11MgmtDeauthentication struct {
@@ -1152,7 +1143,7 @@ func (m *Dot11MgmtDeauthentication) CanDecode() gopacket.LayerClass {
 }
 func (m *Dot11MgmtDeauthentication) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.Reason = Dot11Reason(binary.LittleEndian.Uint16(data[0:2]))
-	return m.Dot11Mgmt.DecodeFromBytes(data, df)
+	return m.Dot11Mgmt.DecodeFromBytes(data[2:], df)
 }
 
 type Dot11MgmtAction struct {
@@ -1164,8 +1155,9 @@ func decodeDot11MgmtAction(data []byte, p gopacket.PacketBuilder) error {
 	return decodingLayerDecoder(d, data, p)
 }
 
-func (m *Dot11MgmtAction) LayerType() gopacket.LayerType  { return LayerTypeDot11MgmtAction }
-func (m *Dot11MgmtAction) CanDecode() gopacket.LayerClass { return LayerTypeDot11MgmtAction }
+func (m *Dot11MgmtAction) LayerType() gopacket.LayerType     { return LayerTypeDot11MgmtAction }
+func (m *Dot11MgmtAction) CanDecode() gopacket.LayerClass    { return LayerTypeDot11MgmtAction }
+func (m *Dot11MgmtAction) NextLayerType() gopacket.LayerType { return gopacket.LayerTypePayload } // parsing Action is not supported yet.
 
 type Dot11MgmtActionNoAck struct {
 	Dot11Mgmt
@@ -1176,8 +1168,9 @@ func decodeDot11MgmtActionNoAck(data []byte, p gopacket.PacketBuilder) error {
 	return decodingLayerDecoder(d, data, p)
 }
 
-func (m *Dot11MgmtActionNoAck) LayerType() gopacket.LayerType  { return LayerTypeDot11MgmtActionNoAck }
-func (m *Dot11MgmtActionNoAck) CanDecode() gopacket.LayerClass { return LayerTypeDot11MgmtActionNoAck }
+func (m *Dot11MgmtActionNoAck) LayerType() gopacket.LayerType     { return LayerTypeDot11MgmtActionNoAck }
+func (m *Dot11MgmtActionNoAck) CanDecode() gopacket.LayerClass    { return LayerTypeDot11MgmtActionNoAck }
+func (m *Dot11MgmtActionNoAck) NextLayerType() gopacket.LayerType { return gopacket.LayerTypePayload } // parsing Action is not supported yet.
 
 type Dot11MgmtArubaWLAN struct {
 	Dot11Mgmt

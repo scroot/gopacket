@@ -404,7 +404,11 @@ func (m *RadioTap) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) erro
 		offset += align(offset, 4)
 	}
 
-	m.BaseLayer = BaseLayer{Contents: data[:m.Length], Payload: data[m.Length:]}
+	payload := data[m.Length:]
+	if !m.Flags.FCS() { // Dot11.DecodeFromBytes() expects FCS present
+		payload = append(payload, 0, 0, 0, 0) // append dummy FCS
+	}
+	m.BaseLayer = BaseLayer{Contents: data[:m.Length], Payload: payload}
 
 	return nil
 }
