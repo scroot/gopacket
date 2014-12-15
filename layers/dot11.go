@@ -14,7 +14,6 @@ import (
 	"code.google.com/p/gopacket"
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
 	"net"
 )
 
@@ -315,7 +314,6 @@ type Dot11 struct {
 	Address4       net.HardwareAddr
 	SequenceNumber uint16
 	FragmentNumber uint16
-	Checksum       uint32
 }
 
 func decodeDot11(data []byte, p gopacket.PacketBuilder) error {
@@ -368,21 +366,8 @@ func (m *Dot11) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 		offset += 6
 	}
 
-	if mainType == Dot11TypeData {
-		m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset:len(data)]}
-	} else {
-		m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset : len(data)-4]}
-		m.Checksum = binary.LittleEndian.Uint32(data[len(data)-4 : len(data)])
-	}
+	m.BaseLayer = BaseLayer{Contents: data[0:offset], Payload: data[offset:len(data)]}
 	return nil
-}
-
-func (m *Dot11) ChecksumValid() bool {
-	// only for CTRL and MGMT frames
-	h := crc32.NewIEEE()
-	h.Write(m.Contents)
-	h.Write(m.Payload)
-	return m.Checksum == h.Sum32()
 }
 
 // Dot11Mgmt is a base for all IEEE 802.11 management layers.

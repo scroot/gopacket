@@ -11,6 +11,7 @@ import (
 	"code.google.com/p/gopacket"
 	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 )
 
 // align calculates the number of bytes needed to align with the width
@@ -302,9 +303,18 @@ type RadioTap struct {
 	DBAntennaSignal uint8
 	// DBAntennaNoise RF noise power at the antenna, decibel difference from an arbitrary, fixed reference point.
 	DBAntennaNoise uint8
+
+	Checksum uint32
 }
 
 func (m *RadioTap) LayerType() gopacket.LayerType { return LayerTypeRadioTap }
+
+func (m *RadioTap) ChecksumValid() bool {
+	// only for CTRL and MGMT frames
+	h := crc32.NewIEEE()
+	h.Write(m.Payload)
+	return m.Checksum == h.Sum32() || !m.Flags.FCS()
+}
 
 func (m *RadioTap) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	m.Version = uint8(data[0])
@@ -404,7 +414,12 @@ func (m *RadioTap) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) erro
 		offset += align(offset, 4)
 	}
 
-	m.BaseLayer = BaseLayer{Contents: data[:m.Length], Payload: data[m.Length:]}
+	if m.Flags.FCS() {
+		m.BaseLayer = BaseLayer{Contents: data[:m.Length], Payload: data[m.Length : len(data)-4]}
+		m.Checksum = binary.LittleEndian.Uint32(data[len(data)-4 : len(data)])
+	} else {
+		m.BaseLayer = BaseLayer{Contents: data[:m.Length], Payload: data[m.Length:]}
+	}
 
 	return nil
 }
