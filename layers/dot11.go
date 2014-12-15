@@ -1005,6 +1005,11 @@ func (m *Dot11MgmtProbeReq) NextLayerType() gopacket.LayerType {
 	return LayerTypeDot11InformationElement
 }
 
+func (m *Dot11MgmtProbeReq) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+	m.BaseLayer = BaseLayer{Contents: nil, Payload: data}
+	return nil
+}
+
 type Dot11MgmtProbeResp struct {
 	Dot11Mgmt
 }
@@ -1018,6 +1023,11 @@ func (m *Dot11MgmtProbeResp) LayerType() gopacket.LayerType  { return LayerTypeD
 func (m *Dot11MgmtProbeResp) CanDecode() gopacket.LayerClass { return LayerTypeDot11MgmtProbeResp }
 func (m *Dot11MgmtProbeResp) NextLayerType() gopacket.LayerType {
 	return LayerTypeDot11InformationElement
+}
+
+func (m *Dot11MgmtProbeResp) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+	m.BaseLayer = BaseLayer{Contents: data[0:12], Payload: data[12:]}
+	return nil
 }
 
 type Dot11MgmtMeasurementPilot struct {
