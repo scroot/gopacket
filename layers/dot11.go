@@ -295,7 +295,7 @@ func (a Dot11InformationElementID) String() string {
 	case Dot11InformationElementIDReserved:
 		return "Reserved"
 	default:
-		return "Unknown information element id"
+		return fmt.Sprintf("Unknown information element id %d", a)
 	}
 }
 
