@@ -356,8 +356,9 @@ func (m *Dot11) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 		m.Address3 = net.HardwareAddr(data[offset : offset+6])
 		offset += 6
 
-		m.SequenceNumber = (binary.LittleEndian.Uint16(data[offset:offset+2]) & 0xFFC0) >> 6
-		m.FragmentNumber = (binary.LittleEndian.Uint16(data[offset:offset+2]) & 0x003F)
+		x := binary.LittleEndian.Uint16(data[offset : offset+2])
+		m.SequenceNumber = (x & 0xFFF0) >> 4
+		m.FragmentNumber = (x & 0x000F)
 		offset += 2
 	}
 
